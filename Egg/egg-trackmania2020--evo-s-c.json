@@ -1,0 +1,182 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2023-11-06T15:28:36+00:00",
+    "name": "Trackmania 2020 + EvoSC",
+    "author": "dogre95@outlook.de",
+    "description": null,
+    "features": null,
+    "docker_images": {
+        "dogre\/ptero:prod": "dogre\/ptero:prod"
+    },
+    "file_denylist": [],
+    "startup": ".\/start.sh",
+    "config": {
+        "files": "{\r\n    \"server\/UserData\/Config\/dedicated_cfg.txt\": {\r\n        \"parser\": \"xml\",\r\n        \"find\": {\r\n            \"dedicated.system_config.server_port\": \"{{server.build.default.port}}\",\r\n            \"dedicated.system_config.xmlrpc_port\": \"{{server.build.env.RPC_PORT}}\",\r\n            \"dedicated.system_config.force_ip_address\": \"{{server.build.env.FORCE_IP_ADDRESS}}\",\r\n            \"dedicated.server_options.name\": \"{{server.build.env.SERVER_NAME}}\",\r\n            \"dedicated.server_options.max_players\": \"{{server.build.env.MAX_PLAYER}}\",\r\n            \"dedicated.server_options.max_spectators\": \"{{server.build.env.MAX_PLAYER}}\",\r\n            \"dedicated.masterserver_account.login\": \"{{server.build.env.MASTER_LOGIN}}\",\r\n            \"dedicated.masterserver_account.password\": \"{{server.build.env.MASTER_PASSWORD}}\"\r\n        }\r\n    },\r\n    \"EvoSC\/config\/database.config.json\": {\r\n        \"parser\": \"json\",\r\n        \"find\": {\r\n            \"host\": \"{{server.build.env.DB_HOST}}\",\r\n            \"db\": \"{{server.build.env.DB_NAME}}\",\r\n            \"user\": \"{{server.build.env.DB_USER}}\",\r\n            \"password\": \"{{server.build.env.DB_PASSWORD}}\",\r\n            \"prefix\": \"{{server.build.env.DB_PREFIX}}\"\r\n        }\r\n    },\r\n    \"EvoSC\/config\/server.config.json\": {\r\n        \"parser\": \"json\",\r\n        \"find\": {\r\n            \"ip\": \"{{server.build.env.RPC_IP}}\",\r\n            \"port\": \"{{server.build.env.RPC_PORT}}\",\r\n            \"rpc.login\": \"{{server.build.env.RPC_LOGIN}}\",\r\n            \"rpc.password\": \"{{server.build.env.RPC_PASSWORD}}\",\r\n            \"default-matchsettings\": \"{{server.build.env.DEFAULT_MATCHSETTINGS}}\"\r\n        }\r\n    }\r\n}",
+        "startup": "{\r\n    \"done\": \"Starting modules finished.\"\r\n}",
+        "logs": "{}",
+        "stop": "!stop"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!\/bin\/ash\r\ncd \/mnt\/server\r\napk update && apk upgrade\r\napk add --no-cache git xmlstarlet jq composer curl\r\n# Installing the Server\r\necho \">>> Downloading the latest Trackmania Server... Please wait...\"\r\ncurl -sSL -o TrackmaniaServer.zip http:\/\/files.v04.maniaplanet.com\/server\/TrackmaniaServer_Latest.zip\r\n\r\necho \">>> Extracting files...\"\r\nunzip -o TrackmaniaServer.zip -d server\r\n\r\necho \">>> Moving files...\"\r\nmv -n .\/server\/UserData\/Config\/dedicated_cfg.default.txt .\/server\/UserData\/Config\/dedicated_cfg.txt\r\nmv -n .\/server\/UserData\/Maps\/MatchSettings\/example.txt .\/server\/UserData\/Maps\/MatchSettings\/tracklist.txt\r\n\r\necho \">>> Editing dedicated_cfg.txt...\"\r\nxmlstarlet ed -L \\\r\n  -u \"\/\/masterserver_account\/login\" -v \"$MASTER_LOGIN\" \\\r\n  -u \"\/\/masterserver_account\/password\" -v \"$MASTER_PASSWORD\" \\\r\n  -u \"\/\/server_options\/name\" -v \"$SERVER_NAME\" \\\r\n  -u \"\/\/system_config\/xmlrpc_allowremote\" -v \"True\" \\\r\n  -u \"\/\/system_config\/force_ip_address\" -v \"$FORCE_IP_ADDRESS\" \\\r\n  -u \"\/\/system_config\/server_port\" -v \"$SERVER_PORT\" \\\r\n  .\/server\/UserData\/Config\/dedicated_cfg.txt\r\n\r\necho \">>> Removing files...\"\r\nrm TrackmaniaServer.zip\r\ncd server\r\nchmod +x TrackmaniaServer\r\nrm TrackmaniaServer.exe\r\n\r\necho \">>> Installing EvoSC... Please wait...\"\r\n# https:\/\/wiki.evotm.com\/books\/evosc-users-guide\/page\/download-installation\r\ncd .. && \r\ngit clone https:\/\/github.com\/EvoTM\/EvoSC.git\r\ncd EvoSC\r\ncomposer i --no-dev --ignore-platform-reqs\r\n\r\necho \">>> Editing database.config.json & server.config.json...\"\r\njq \\\r\n  --arg host \"$DB_HOST\" \\\r\n  --arg db \"$DB_NAME\" \\\r\n  --arg user \"$DB_USER\" \\\r\n  --arg password \"$DB_PASSWORD\" \\\r\n  --arg prefix \"$DB_PREFIX\" \\\r\n  '.host = $host | .db = $db | .user = $user | .password = $password | .prefix = $prefix' \\\r\n  \"config\/default\/database.config.json\" >\"config\/database.config.json\"\r\n\r\njq \\\r\n  --arg ip \"$RPC_IP\" \\\r\n  --arg port \"$RPC_PORT\" \\\r\n  --arg login \"$RPC_LOGIN\" \\\r\n  --arg password \"$RPC_PASSWORD\" \\\r\n  --arg matchsettings \"$DEFAULT_MATCHSETTINGS\" \\\r\n  '.ip = $ip | .port = $port | .rpc.login = $login | .rpc.password = $password | .[\"default-matchsettings\"] = $matchsettings' \\\r\n  \"config\/default\/server.config.json\" >\"config\/server.config.json\"\r\necho \" Done.\"\r\n\r\ntouch cache\/.setupfinished\r\n\r\necho \">>> Downloading start.sh...\"\r\ncd .. && curl -sSL -o start.sh -f https:\/\/raw.githubusercontent.com\/dogre95\/Pterodactyl\/main\/Egg\/start.sh\r\n\r\nif [ $? -ne 0 ]; then\r\n  echo \">>> ERROR: File download failed.\"\r\n  exit 1\r\nfi\r\n\r\nchmod +x start.sh\r\necho \">>> Installation completed.\"\r\nexit 0",
+            "container": "alpine:3.18.4",
+            "entrypoint": "ash"
+        }
+    },
+    "variables": [
+        {
+            "name": "SERVER_NAME",
+            "description": "",
+            "env_variable": "SERVER_NAME",
+            "default_value": "A tm server",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "MAX_PLAYER",
+            "description": "",
+            "env_variable": "MAX_PLAYER",
+            "default_value": "32",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|integer|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "MASTER_LOGIN",
+            "description": "",
+            "env_variable": "MASTER_LOGIN",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:25",
+            "field_type": "text"
+        },
+        {
+            "name": "MASTER_PASSWORD",
+            "description": "",
+            "env_variable": "MASTER_PASSWORD",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "DB_HOST",
+            "description": "",
+            "env_variable": "DB_HOST",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:128",
+            "field_type": "text"
+        },
+        {
+            "name": "DB_NAME",
+            "description": "",
+            "env_variable": "DB_NAME",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "DB_USER",
+            "description": "",
+            "env_variable": "DB_USER",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "DB_PASSWORD",
+            "description": "",
+            "env_variable": "DB_PASSWORD",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "DB_PREFIX",
+            "description": "",
+            "env_variable": "DB_PREFIX",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "RPC_LOGIN",
+            "description": "",
+            "env_variable": "RPC_LOGIN",
+            "default_value": "SuperAdmin",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "RPC_PASSWORD",
+            "description": "",
+            "env_variable": "RPC_PASSWORD",
+            "default_value": "SuperAdmin",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "RPC_IP",
+            "description": "",
+            "env_variable": "RPC_IP",
+            "default_value": "localhost",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "RPC_PORT",
+            "description": "",
+            "env_variable": "RPC_PORT",
+            "default_value": "5000",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|integer|max:65535",
+            "field_type": "text"
+        },
+        {
+            "name": "FORCE_IP_ADDRESS",
+            "description": "",
+            "env_variable": "FORCE_IP_ADDRESS",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "DEFAULT_MATCHSETTINGS",
+            "description": "",
+            "env_variable": "DEFAULT_MATCHSETTINGS",
+            "default_value": "tracklist.txt",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        }
+    ]
+}
